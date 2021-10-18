@@ -1,4 +1,4 @@
-name: Main
+name: main
 
 on:
   push:
@@ -17,4 +17,9 @@ jobs:
       with:
         go-version: 1.17
     - name: Run
+      env:
+        MEMBERSHIP_NUM: ${{ secrets.MEMBERSHIP_NUM }}
+        MEMBERSHIP_PIN: ${{ secrets.MEMBERSHIP_PIN }}
+        PASSCREATOR_API_KEY: ${{ secrets.PASSCREATOR_API_KEY }}
+        PASSCREATOR_PASS_ID: ${{ secrets.PASSCREATOR_PASS_ID }}
       run: make ci
