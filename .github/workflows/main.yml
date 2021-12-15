@@ -23,3 +23,10 @@ jobs:
         PASSCREATOR_API_KEY: ${{ secrets.PASSCREATOR_API_KEY }}
         PASSCREATOR_PASS_ID: ${{ secrets.PASSCREATOR_PASS_ID }}
       run: make ci
+    - name: Run (Loay)
+      env:
+        MEMBERSHIP_NUM: ${{ secrets.LOAY_MEMBERSHIP_NUM }}
+        MEMBERSHIP_PIN: ${{ secrets.LOAY_MEMBERSHIP_PIN }}
+        PASSCREATOR_API_KEY: ${{ secrets.PASSCREATOR_API_KEY }}
+        PASSCREATOR_PASS_ID: ${{ secrets.LOAY_PASSCREATOR_PASS_ID }}
+      run: make ci
