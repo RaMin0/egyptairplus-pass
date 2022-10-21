@@ -12,7 +12,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"golang.org/x/net/html"
+)
+
+const (
+	loginURL = "https://www.egyptairplus.com/StandardWebsite/Login.jsp"
 )
 
 var (
@@ -37,7 +42,7 @@ func main() {
 	reqBody.Add("txtUser", membershipNum)
 	reqBody.Add("txtPass", membershipPin)
 	reqBody.Add("clickedButton", "Login")
-	res, err := http.Post("https://www.egyptairplus.com/StandardWebsite/Login.jsp", "application/x-www-form-urlencoded", strings.NewReader(reqBody.Encode()))
+	res, err := retryablehttp.Post(loginURL, "application/x-www-form-urlencoded", strings.NewReader(reqBody.Encode()))
 	if err != nil {
 		log.Fatal(err)
 	}
