@@ -9,8 +9,28 @@ on:
   - cron:  '59 23 * * *'
 
 jobs:
-  build:
+  is-enabled:
     runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.ramy.outputs.enabled }}
+      loay-enabled: ${{ steps.loay.outputs.enabled }}
+    steps:
+    - id: ramy
+      env:
+        ENABLED: ${{ vars.ENABLED }}
+      if: "${{ env.ENABLED == '1' }}"
+      run: echo "enabled=1" >> $GITHUB_OUTPUT
+    - id: loay
+      env:
+        LOAY_ENABLED: ${{ vars.LOAY_ENABLED }}
+      if: "${{ env.LOAY_ENABLED == '1' }}"
+      run: echo "loay-enabled=1" >> $GITHUB_OUTPUT
+
+  run-ramy:
+    name: Ramy
+    runs-on: ubuntu-latest
+    needs: [is-enabled]
+    if: needs.is-enabled.outputs.enabled == '1'
     steps:
     - uses: actions/checkout@v2
     - name: Setup
@@ -24,7 +44,19 @@ jobs:
         PASSCREATOR_API_KEY: ${{ secrets.PASSCREATOR_API_KEY }}
         PASSCREATOR_PASS_ID: ${{ secrets.PASSCREATOR_PASS_ID }}
       run: make ci
-    - name: Run (Loay)
+
+  run-loay:
+    name: Loay
+    runs-on: ubuntu-latest
+    needs: [is-enabled]
+    if: needs.is-enabled.outputs.loay-enabled == '1'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.17
+    - name: Run
       env:
         MEMBERSHIP_NUM: ${{ secrets.LOAY_MEMBERSHIP_NUM }}
         MEMBERSHIP_PIN: ${{ secrets.LOAY_MEMBERSHIP_PIN }}
