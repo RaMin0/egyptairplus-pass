@@ -1,4 +1,4 @@
-name: main
+name: egyptair
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
     - master
   workflow_dispatch:
   schedule:
-  - cron:  '59 23 * * *'
+  - cron:  "59 23 * * *"
 
 jobs:
   is-enabled:
@@ -39,11 +39,11 @@ jobs:
         go-version: 1.17
     - name: Run
       env:
-        MEMBERSHIP_NUM: ${{ secrets.MEMBERSHIP_NUM }}
-        MEMBERSHIP_PIN: ${{ secrets.MEMBERSHIP_PIN }}
         PASSCREATOR_API_KEY: ${{ secrets.PASSCREATOR_API_KEY }}
         PASSCREATOR_PASS_ID: ${{ secrets.PASSCREATOR_PASS_ID }}
-      run: make ci
+        MEMBERSHIP_NUM: ${{ secrets.MEMBERSHIP_NUM }}
+        MEMBERSHIP_PIN: ${{ secrets.MEMBERSHIP_PIN }}
+      run: make run -e APP=egyptair
 
   run-loay:
     name: Loay
@@ -58,8 +58,8 @@ jobs:
         go-version: 1.17
     - name: Run
       env:
-        MEMBERSHIP_NUM: ${{ secrets.LOAY_MEMBERSHIP_NUM }}
-        MEMBERSHIP_PIN: ${{ secrets.LOAY_MEMBERSHIP_PIN }}
         PASSCREATOR_API_KEY: ${{ secrets.PASSCREATOR_API_KEY }}
         PASSCREATOR_PASS_ID: ${{ secrets.LOAY_PASSCREATOR_PASS_ID }}
-      run: make ci
+        MEMBERSHIP_NUM: ${{ secrets.LOAY_MEMBERSHIP_NUM }}
+        MEMBERSHIP_PIN: ${{ secrets.LOAY_MEMBERSHIP_PIN }}
+      run: make run -e APP=egyptair

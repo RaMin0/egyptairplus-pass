@@ -1,7 +1,9 @@
-run:
-	@set -o allexport && source .env && go run .
-.PHONY: run
+APP ?= egyptair
 
-ci:
-	@go run .
-.PHONY: ci
+dev:
+	@set -o allexport && source .env && go run ./cmd/${APP}
+.PHONY: dev
+
+run:
+	@go run ./cmd/${APP}
+.PHONY: run

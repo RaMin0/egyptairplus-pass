@@ -21,10 +21,10 @@ const (
 )
 
 var (
-	membershipNum     = os.Getenv("MEMBERSHIP_NUM")
-	membershipPin     = os.Getenv("MEMBERSHIP_PIN")
 	passcreatorAPIKey = os.Getenv("PASSCREATOR_API_KEY")
 	passcreatorPassID = os.Getenv("PASSCREATOR_PASS_ID")
+	membershipNum     = os.Getenv("MEMBERSHIP_NUM")
+	membershipPin     = os.Getenv("MEMBERSHIP_PIN")
 
 	membershipTiers = map[string][2]string{
 		"":     [...]string{"Unknown", "ffffff"},
