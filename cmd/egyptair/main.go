@@ -2,22 +2,22 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"golang.org/x/net/html"
 )
 
 const (
-	loginURL = "https://www.egyptairplus.com/StandardWebsite/Login.jsp"
+	loginURL      = "https://www.egyptairplus.com/api/auth/login"
+	membershipURL = "https://www.egyptairplus.com/api/memberships/%s"
 )
 
 var (
@@ -37,12 +37,35 @@ var (
 )
 
 func main() {
-	reqBody := url.Values{}
-	reqBody.Add("countrySelect", "EG")
-	reqBody.Add("txtUser", membershipNum)
-	reqBody.Add("txtPass", membershipPin)
-	reqBody.Add("clickedButton", "Login")
-	res, err := retryablehttp.Post(loginURL, "application/x-www-form-urlencoded", strings.NewReader(reqBody.Encode()))
+	httpClient := retryablehttp.NewClient()
+	httpClient.HTTPClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+
+	b, err := json.Marshal(map[string]string{
+		"username": membershipNum,
+		"password": membershipPin,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	res, err := httpClient.Post(loginURL, "application/json", bytes.NewReader(b))
+	if err != nil {
+		log.Fatal(err)
+	}
+	var accessToken string
+	for _, c := range res.Cookies() {
+		if c.Name != "accessToken" {
+			continue
+		}
+		accessToken = c.Value
+		break
+	}
+
+	req, err := retryablehttp.NewRequest(http.MethodGet, fmt.Sprintf(membershipURL, membershipNum), nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.AddCookie(&http.Cookie{Name: "accessToken", Value: accessToken})
+	res, err = httpClient.Do(req)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,43 +82,43 @@ func main() {
 }
 
 func parseCard(r io.Reader) (string, string, string, int, error) {
-	doc, err := html.Parse(r)
-	if err != nil {
+	var doc struct {
+		Data struct {
+			Individual struct {
+				FulfillmentDetail struct {
+					NameOnCard string `json:"nameOnCard"`
+				} `json:"fulfillmentDetail"`
+			} `json:"individual"`
+			MainTier struct {
+				AllianceTier struct {
+					FfpTierCode string `json:"ffpTierCode"`
+				} `json:"allianceTier"`
+			} `json:"mainTier"`
+			LoyaltyAward []struct {
+				Code   string `json:"code"`
+				Amount string `json:"amount"`
+			} `json:"loyaltyAward"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(r).Decode(&doc); err != nil {
 		return "", "", "", 0, err
 	}
 
-	readAttr := func(n *html.Node, attrName string) string {
-		for _, attr := range n.Attr {
-			if attr.Key == attrName {
-				return attr.Val
-			}
+	loginName := doc.Data.Individual.FulfillmentDetail.NameOnCard
+
+	loginDetailsTier, loginDetailsTierColor := parseCardTier(doc.Data.MainTier.AllianceTier.FfpTierCode)
+
+	var loginAwd int
+	for _, award := range doc.Data.LoyaltyAward {
+		if award.Code != "AWM" {
+			continue
 		}
-		return ""
+		var err error
+		loginAwd, err = strconv.Atoi(strings.TrimSpace(award.Amount))
+		if err != nil {
+			return "", "", "", 0, err
+		}
 	}
-
-	var findByClassName func(n *html.Node, className string) *html.Node
-	findByClassName = func(n *html.Node, className string) *html.Node {
-		if n.Type == html.ElementNode && readAttr(n, "class") == className {
-			return n
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			if x := findByClassName(c, className); x != nil {
-				return x
-			}
-		}
-		return nil
-	}
-
-	loginContentElm := findByClassName(doc, "LoginContent")
-
-	loginNameElm := findByClassName(loginContentElm, "LoginName")
-	loginName := strings.Title(strings.ToLower(loginNameElm.FirstChild.Data))
-
-	loginDetailsElm := findByClassName(loginContentElm, "LoginDetails")
-	loginDetailsTier, loginDetailsTierColor := parseCardTier(strings.Fields(loginDetailsElm.FirstChild.NextSibling.NextSibling.Data)[1])
-
-	loginAwdElm := findByClassName(loginContentElm, "LoginAwd")
-	loginAwd, _ := strconv.Atoi(strings.ReplaceAll(strings.Fields(loginAwdElm.FirstChild.Data)[3], ",", ""))
 
 	return loginName, loginDetailsTier, loginDetailsTierColor, loginAwd, nil
 }
