@@ -2,7 +2,13 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,8 +19,10 @@ import (
 )
 
 const (
-	userDataURL = "https://www.breadfast.com/wp-json/breadfast/v3/user/data"
-	gameballURL = "https://api.gameball.co/api/v3.0/integrations/player/%d"
+	userDataURL    = "https://www.breadfast.com/wp-json/breadfast/v3/user/data"
+	cardLoginURL   = "https://card-panel.breadfast.tech/api/v1/mobile/wallet_users/login"
+	cardBalanceURL = "https://card-panel.breadfast.tech/api/v1/mobile/wallet_users/getBalance"
+	gameballURL    = "https://api.gameball.co/api/v3.0/integrations/player/%d"
 )
 
 var (
@@ -22,10 +30,18 @@ var (
 	passcreatorPassID = os.Getenv("PASSCREATOR_PASS_ID")
 	token             = os.Getenv("BREADFAST_TOKEN")
 	gameballAPIKey    = os.Getenv("BREADFAST_GAMEBALL_API_KEY")
+	mobileNumber      = os.Getenv("BREADFAST_CARD_MOBILE_NUMBER")
+	passcode          = os.Getenv("BREADFAST_CARD_PASSCODE")
+	deviceID          = os.Getenv("BREADFAST_CARD_DEVICE_ID")
+	publicKey         = os.Getenv("BREADFAST_CARD_PUBLIC_KEY")
 )
 
 func main() {
-	userName, balance, points, err := fetchData()
+	userName, _, points, err := fetchData()
+	if err != nil {
+		log.Fatal(err)
+	}
+	balance, err := fetchCardData()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,6 +95,78 @@ func fetchData() (string, string, int, error) {
 	}
 
 	return strings.TrimSpace(userDataRes.Data.FirstName + " " + userDataRes.Data.LastName), userDataRes.Data.Balance, gameballRes.Balance.Points, nil
+}
+
+func fetchCardData() (string, error) {
+	client := retryablehttp.NewClient()
+	encBody, err := func() (string, error) {
+		payload, err := json.Marshal(map[string]interface{}{
+			"mobile_number": mobileNumber,
+			"mpin":          passcode,
+			"scheme_id":     1,
+			"device_info": map[string]string{
+				"device_id": deviceID,
+			},
+		})
+		if err != nil {
+			return "", err
+		}
+		return func(payload []byte) (string, error) {
+			block, _ := pem.Decode([]byte(strings.ReplaceAll(publicKey, "\\n", "\n")))
+			pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+			if err != nil {
+				return "", err
+			}
+			enc, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, pub.(*rsa.PublicKey), []byte(payload), nil)
+			if err != nil {
+				return "", err
+			}
+			return base64.StdEncoding.EncodeToString(enc), nil
+		}(payload)
+	}()
+	if err != nil {
+		return "", err
+	}
+	resBody, err := json.Marshal(map[string]string{"data": encBody})
+	loginReq, err := retryablehttp.NewRequest(http.MethodPost, cardLoginURL, resBody)
+	if err != nil {
+		return "", err
+	}
+	loginRes, err := client.Do(loginReq)
+	if err != nil {
+		return "", err
+	}
+	defer loginRes.Body.Close()
+	var loginResBody struct {
+		Token   string  `json:"token"`
+		Balance float64 `json:"current_balance"`
+	}
+	if err := json.NewDecoder(loginRes.Body).Decode(&loginResBody); err != nil {
+		return "", err
+	}
+
+	balanceReq, err := retryablehttp.NewRequest(http.MethodPost, cardBalanceURL, nil)
+	if err != nil {
+		return "", err
+	}
+	balanceRes, err := client.Do(balanceReq)
+	if err != nil {
+		return "", err
+	}
+	defer balanceRes.Body.Close()
+	var balanceResBody struct {
+		Token   string  `json:"token"`
+		Balance float64 `json:"current_balance"`
+	}
+	if err := json.NewDecoder(balanceRes.Body).Decode(&balanceResBody); err != nil {
+		return "", err
+	}
+
+	balance := loginResBody.Balance
+	if cardBalance := balanceResBody.Balance; cardBalance != 0 {
+		balance = cardBalance
+	}
+	return fmt.Sprintf("%.2f", balance), nil
 }
 
 func updatePass(userName string, balance string, points int) error {
