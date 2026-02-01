@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	loginURL      = "https://www.egyptairplus.com/api/auth/login"
-	membershipURL = "https://www.egyptairplus.com/api/memberships/%s"
+	loginURL      = "https://www.egyptairplus.com/api/login"
+	membershipURL = "https://www.egyptairplus.com/api/memberships/me"
 )
 
 var (
@@ -41,7 +41,7 @@ func main() {
 	httpClient.HTTPClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
 	b, err := json.Marshal(map[string]string{
-		"username": membershipNum,
+		"userName": membershipNum,
 		"password": membershipPin,
 	})
 	if err != nil {
@@ -60,7 +60,7 @@ func main() {
 		break
 	}
 
-	req, err := retryablehttp.NewRequest(http.MethodGet, fmt.Sprintf(membershipURL, membershipNum), nil)
+	req, err := retryablehttp.NewRequest(http.MethodGet, membershipURL, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
